@@ -2,8 +2,6 @@
 
 An intelligent AI-powered agent for managing and interacting with your GitHub repositories. Built with **Cloudflare Workers** and **Vercel AI SDK**, this agent enables you to leverage AI capabilities to automate GitHub workflows, analyze code, manage issues, and perform repository operations through a conversational interface.
 
-![GitHub AI Agent](./npm-agents-banner.svg)
-
 ## ✨ Features
 
 - 💬 **Conversational Interface** - Chat naturally with your AI GitHub assistant
