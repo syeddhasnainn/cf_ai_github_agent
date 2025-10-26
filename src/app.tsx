@@ -5,7 +5,6 @@ import { isToolUIPart } from "ai";
 import { useAgentChat } from "agents/ai-react";
 import type { UIMessage } from "@ai-sdk/react";
 import type { tools } from "./tools";
-
 // Component imports
 import { Button } from "@/components/button/Button";
 import { Card } from "@/components/card/Card";
@@ -26,6 +25,7 @@ import {
   Stop
 } from "@phosphor-icons/react";
 import { SigninWithGithub } from "./components/sign-in";
+import { DisplayRepos } from "./display-repos";
 
 // List of tools that require human confirmation
 // NOTE: this should match the tools that don't have execute functions in tools.ts
@@ -42,6 +42,11 @@ export default function Chat() {
   const [showDebug, setShowDebug] = useState(false);
   const [textareaHeight, setTextareaHeight] = useState("auto");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const [repos, setRepos] = useState<any[]>([]);
+  const [selectedRepo, setSelectedRepo] = useState<any>({});
+
+  const [authenticated, setAuthenticated] = useState(false);
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -66,6 +71,24 @@ export default function Chat() {
     scrollToBottom();
   }, [scrollToBottom]);
 
+  useEffect(() => {
+    const storedToken = localStorage.getItem("access_token");
+
+    if (storedToken) {
+      setAuthenticated(true);
+    }
+
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const token = params.get("access_token");
+
+    if (token) {
+      localStorage.setItem("access_token", token);
+    }
+
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
   const toggleTheme = () => {
     const newTheme = theme === "dark" ? "light" : "dark";
     setTheme(newTheme);
@@ -89,6 +112,10 @@ export default function Chat() {
     e.preventDefault();
     if (!agentInput.trim()) return;
 
+    agent.setState({
+      accessToken: localStorage.getItem("access_token")
+    });
+
     const message = agentInput;
     setAgentInput("");
 
@@ -99,7 +126,11 @@ export default function Chat() {
         parts: [{ type: "text", text: message }]
       },
       {
-        body: extraData
+        body: {
+          owner: selectedRepo.owner.login,
+          repoName: selectedRepo.name,
+          cloneUrl: selectedRepo.clone_url
+        }
       }
     );
   };
@@ -139,8 +170,18 @@ export default function Chat() {
   return (
     <div className="h-[100vh] w-full p-4 flex justify-center items-center bg-fixed overflow-hidden">
       <HasOpenAIKey />
-      <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-lg flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
-        <SigninWithGithub />
+      <div className="h-[calc(100vh-2rem)] w-full mx-auto max-w-2xl flex flex-col shadow-xl rounded-md overflow-hidden relative border border-neutral-300 dark:border-neutral-800">
+        <div className="flex gap-4 items-center justify-center">
+          <SigninWithGithub authenticated={authenticated} />
+
+          <DisplayRepos
+            repos={repos}
+            setRepos={setRepos}
+            selectedRepo={selectedRepo}
+            setSelectedRepo={setSelectedRepo}
+          />
+        </div>
+
         <div className="px-4 py-3 border-b border-neutral-300 dark:border-neutral-800 flex items-center gap-3 sticky top-0 z-10">
           <div className="flex items-center justify-center h-8 w-8">
             <svg
@@ -161,7 +202,7 @@ export default function Chat() {
           </div>
 
           <div className="flex-1">
-            <h2 className="font-semibold text-base">AI Chat Agent</h2>
+            <h2 className="font-semibold text-base">Github Agent</h2>
           </div>
 
           <div className="flex items-center gap-2 mr-2">

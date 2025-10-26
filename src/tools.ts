@@ -1,5 +1,5 @@
 /**
- * Tool definitions for the AI chat agent
+ * Tool definitions for the Github agent
  * Tools can either require human confirmation or execute automatically
  */
 import { tool, type ToolSet } from "ai";
@@ -9,10 +9,27 @@ import type { Chat } from "./server";
 import { getCurrentAgent } from "agents";
 import { scheduleSchema } from "agents/schedule";
 
+import { getSandbox } from "@cloudflare/sandbox";
+import { env } from "cloudflare:workers";
+import { Octokit } from "octokit";
+
 /**
  * Weather information tool that requires human confirmation
  * When invoked, this will present a confirmation dialog to the user
  */
+
+const getAccessToken = () => {
+  const { agent } = getCurrentAgent<Chat>();
+
+  if (!agent) {
+    throw new Error("Agent not found");
+  }
+
+  const state = agent.state as { accessToken: string };
+
+  return state.accessToken;
+};
+
 const getWeatherInformation = tool({
   description: "show the weather in a given city to the user",
   inputSchema: z.object({ city: z.string() })
@@ -108,6 +125,150 @@ const cancelScheduledTask = tool({
   }
 });
 
+const listIssues = tool({
+  description: "List all issues for a given repository",
+  inputSchema: z.object({
+    owner: z.string(),
+    repoName: z.string()
+  }),
+  execute: async ({ owner, repoName }) => {
+    const accessToken = getAccessToken();
+
+    const octokit = new Octokit({
+      auth: accessToken
+    });
+
+    const issues = await octokit.rest.issues.listForRepo({
+      owner,
+      repo: repoName
+    });
+
+    return issues.data.map((issue) => ({
+      id: issue.id,
+      title: issue.title,
+      description: issue.body,
+      state: issue.state,
+      createdAt: issue.created_at,
+      updatedAt: issue.updated_at
+    }));
+  }
+});
+
+const cloneRepository = tool({
+  description: "Clone a given repository",
+  inputSchema: z.object({
+    repoUrl: z.string()
+  }),
+  execute: async ({ repoUrl }) => {
+    const sandbox = getSandbox(env.Sandbox, "user-123");
+
+    await sandbox.exec(`git config --global user.name "Github Bot"`);
+
+    await sandbox.exec(`git config --global user.email "fake@agent.com"`);
+
+    await sandbox.exec(`git clone ${repoUrl}`);
+
+    return "Repository cloned successfully";
+  }
+});
+
+const createPullRequest = tool({
+  description: "Create a pull request for a given repository",
+  inputSchema: z.object({
+    repoName: z.string(),
+    owner: z.string(),
+    title: z.string(),
+    body: z.string(),
+    branchName: z.string()
+  }),
+  execute: async ({ repoName, owner, title, body, branchName }) => {
+    const accessToken = getAccessToken();
+
+    const octokit = new Octokit({
+      auth: accessToken
+    });
+
+    await octokit.rest.pulls.create({
+      owner,
+      repo: repoName,
+      title,
+      body,
+      head: branchName,
+      base: "main"
+    });
+
+    return "Pull request created successfully";
+  }
+});
+
+const listAllFiles = tool({
+  description:
+    "List all files in a given directory where directory is the name of the repository",
+  inputSchema: z.object({
+    repoName: z.string()
+  }),
+  execute: async ({ repoName }) => {
+    const sandbox = getSandbox(env.Sandbox, "user-123");
+
+    const result = await sandbox.exec(`ls -R /workspace/${repoName}`);
+
+    return result.stdout;
+  }
+});
+
+const readFile = tool({
+  description: "Read a given file from a given repository",
+  inputSchema: z.object({
+    filePath: z.string()
+  }),
+  execute: async ({ filePath }: { filePath: string }) => {
+    const sandbox = getSandbox(env.Sandbox, "user-123");
+
+    const file = await sandbox.readFile(filePath, {
+      encoding: "utf-8"
+    });
+
+    return file.content;
+  }
+});
+
+const writeFile = tool({
+  description: "Write a given file to a given repository",
+  inputSchema: z.object({
+    filePath: z.string(),
+    content: z.string()
+  }),
+  execute: async ({ filePath, content }) => {
+    const sandbox = getSandbox(env.Sandbox, "user-123");
+    await sandbox.writeFile(filePath, content, {
+      encoding: "utf-8"
+    });
+
+    return "File written successfully";
+  }
+});
+
+const commandExecutor = tool({
+  description: "A tool to execute a given command in the sandbox",
+  inputSchema: z.object({
+    command: z.string()
+  }),
+  execute: async ({ command }) => {
+    const sandbox = getSandbox(env.Sandbox, "user-123");
+
+    const result = await sandbox.exec(command);
+
+    if (result.success) {
+      console.log("Command executed successfully");
+      return result.stdout;
+    } else {
+      console.error("Error executing command", result.stderr);
+
+      return result.stderr;
+    }
+  }
+});
+
 /**
  * Export all available tools
  * These will be provided to the AI model to describe available capabilities
@@ -117,7 +278,14 @@ export const tools = {
   getLocalTime,
   scheduleTask,
   getScheduledTasks,
-  cancelScheduledTask
+  cancelScheduledTask,
+  listIssues,
+  cloneRepository,
+  listAllFiles,
+  readFile,
+  writeFile,
+  commandExecutor,
+  createPullRequest
 } satisfies ToolSet;
 
 /**

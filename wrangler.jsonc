@@ -13,13 +13,14 @@
     "remote": true
   },
   "assets": {
-    "directory": "public"
+    "directory": "dist",
+    "binding": "ASSETS"
   },
   "containers": [
     {
       "class_name": "Sandbox",
       "image": "./Dockerfile",
-      //   "instance_type": "lite",
+      "instance_type": "lite",
       "max_instances": 10
     }
   ],
@@ -41,7 +42,7 @@
       "new_sqlite_classes": ["Chat"]
     },
     {
-      "tag": "v1",
+      "tag": "v2",
       "new_sqlite_classes": ["Sandbox"]
     }
   ],

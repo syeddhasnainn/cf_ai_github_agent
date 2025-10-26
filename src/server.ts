@@ -1,30 +1,33 @@
-import { routeAgentRequest, type Schedule } from "agents";
+import {
+  routeAgentRequest,
+  type Connection,
+  type Schedule,
+  type WSMessage
+} from "agents";
 
-import { getSchedulePrompt } from "agents/schedule";
-
+import { openai } from "@ai-sdk/openai";
 import { AIChatAgent } from "agents/ai-chat-agent";
 import {
+  convertToModelMessages,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
   generateId,
+  stepCountIs,
   streamText,
   type StreamTextOnFinishCallback,
-  stepCountIs,
-  createUIMessageStream,
-  convertToModelMessages,
-  createUIMessageStreamResponse,
   type ToolSet
 } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { processToolCalls, cleanupMessages } from "./utils";
-import { tools, executions } from "./tools";
+import { executions, tools } from "./tools";
+import { cleanupMessages, processToolCalls } from "./utils";
 // import { env } from "cloudflare:workers";
-import { Octokit } from "octokit";
 import { getSandbox } from "@cloudflare/sandbox";
+import { Octokit } from "octokit";
 
 export { Sandbox } from "@cloudflare/sandbox";
 
-const octokit = new Octokit({
-  auth: process.env.GITHUB_TOKEN || ""
-});
+if (!process.env.GITHUB_CLIENT_SECRET || !process.env.GITHUB_CLIENT_ID) {
+  throw new Error("GITHUB_CLIENT_SECRET and GITHUB_CLIENT_ID are required");
+}
 
 const model = openai("gpt-4o-2024-11-20");
 // Cloudflare AI Gateway
@@ -36,10 +39,23 @@ const model = openai("gpt-4o-2024-11-20");
 /**
  * Chat Agent implementation that handles real-time AI chat interactions
  */
+
 export class Chat extends AIChatAgent<Env> {
   /**
    * Handles incoming chat messages and manages the response stream
    */
+
+  initialState = {
+    accessToken: null
+  };
+
+  private currentMessage?: WSMessage;
+
+  async onMessage(connection: Connection, message: WSMessage): Promise<void> {
+    this.currentMessage = message;
+    return super.onMessage(connection, message);
+  }
+
   async onChatMessage(
     onFinish: StreamTextOnFinishCallback<ToolSet>,
     _options?: { abortSignal?: AbortSignal }
@@ -48,15 +64,24 @@ export class Chat extends AIChatAgent<Env> {
     //   "https://path-to-mcp-server/sse"
     // );
 
+    const state = this.state as { accessToken: string };
+
+    const accessToken = state.accessToken;
+
     // Collect all tools, including MCP tools
     const allTools = {
       ...tools,
       ...this.mcp.getAITools()
     };
 
+    const { owner, repoName, cloneUrl } = JSON.parse(
+      JSON.parse(this.currentMessage as string).init.body
+    );
+
     const stream = createUIMessageStream({
       execute: async ({ writer }) => {
         // Clean up incomplete tool calls to prevent API errors
+
         const cleanedMessages = cleanupMessages(this.messages);
 
         // Process any pending tool calls from previous messages
@@ -69,11 +94,35 @@ export class Chat extends AIChatAgent<Env> {
         });
 
         const result = streamText({
-          system: `You are a helpful assistant that can do various tasks... 
+          system: `You are a software engineering agent, you can fix issues in a repo, create PRs, and do various tasks... 
 
-${getSchedulePrompt({ date: new Date() })}
+          - create a feature branch
+          - make the changes in the necessary files
+          - commit the changes
+          - push the changes
+          - create a PR
 
-If the user asks to schedule a task, use the schedule tool to schedule the task.
+
+          Before doing any operation, make sure to print the current working directory using the commandExecutor tool.
+
+          You might have to use the read/write tools multiple times to fix the issue.
+
+          when using the commandExecutor tool, make sure to print the current working directory first to avoid any errors.
+
+Files are stored in the /workspace/${repoName} directory. So when the user asks to read a file, you should use the readFile tool to read the file. You have to add the name of the file after the /workspace/${repoName} directory.
+
+Github Token: ${accessToken}
+
+make sure to commit the changes before pushing the changes. use the commandExecutor tool to commit the changes.
+
+	git commit -m "commit message"
+
+when pushing the changes use the authenticated link and use the commandExecutor tool to push the changes. make sure you are inside the repository directory.
+
+	git push https://oauth2:${accessToken}@github.com/${owner}/${repoName}.git branch-name
+
+Github Repo Name: ${repoName}
+Github Repo Clone URL: ${cloneUrl}
 `,
 
           messages: convertToModelMessages(processedMessages),
@@ -84,7 +133,7 @@ If the user asks to schedule a task, use the schedule tool to schedule the task.
           onFinish: onFinish as unknown as StreamTextOnFinishCallback<
             typeof allTools
           >,
-          stopWhen: stepCountIs(10)
+          stopWhen: stepCountIs(25)
         });
 
         writer.merge(result.toUIMessageStream());
@@ -148,58 +197,59 @@ export default {
 
         const data = await token.json();
 
-        return Response.json(data);
+        const redirectUrl = new URL(request.url);
+        redirectUrl.pathname = "/";
+        redirectUrl.search = "";
+
+        redirectUrl.hash = `access_token=${data.access_token}&token_type=${data.token_type}`;
+
+        return Response.redirect(redirectUrl.toString(), 302);
       } catch (error) {
         console.error("error:", error);
         return new Response("Internal Server Error", { status: 500 });
       }
     }
 
-
     if (url.pathname === "/api/list") {
       console.log("list");
-      // const data = await octokit.rest.repos.listForAuthenticatedUser();
-
-      // const repos = data.data.map((repo) => ({
-      //   id: repo.id,
-      //   name: repo.full_name,
-      //   url: repo.html_url
-      // }));
-
-      // const issues = await octokit.rest.issues.listForRepo({
-      //   owner: "syeddhasnainn",
-      //   repo: "studyboost",
-      //   per_page: 100
-      // });
 
       const sandbox = getSandbox(env.Sandbox, "user-123");
 
-      console.log("sandbox", sandbox);
+      try {
+        const result = await sandbox.exec(`pwd`);
+        console.log("result:", result);
 
-      const result = await sandbox.exec("echo 'Hello, World!'");
+        if (result.success) {
+          console.log("Repository listed successfully");
+          return Response.json({ result: result.stdout });
+        } else {
+          console.error("Error listing repository", result.stderr);
 
-      // console.log(result);
+          return Response.json({ error: result.stderr });
+        }
+      } catch (error) {
+        console.error("error:", error);
+      }
+    }
 
-      return Response.json({ result });
+    if (url.pathname === "/api/getRepos") {
+      const body = (await request.json()) as { accessToken: string };
 
-      // console.log(sandbox);
+      const accessToken = body.accessToken;
 
-      // const files = await octokit.rest.repos.downloadZipballArchive({
-      //   owner: "syeddhasnainn",
-      //   repo: "studyboost",
-      //   ref: "main"
-      // });
+      const octokit = new Octokit({
+        auth: accessToken
+      });
 
-      // console.log(files);
+      const repos = await octokit.rest.repos.listForAuthenticatedUser({
+        per_page: 100
+      });
 
-      // const issues = await octokit.rest.issues.listForRepo({
-      //   owner: "syeddhasnainn",
-      //   repo: "syeddhasnainn/cal.com"
-      // });
+      const filteredRepos = repos.data.filter(
+        (repo) => repo.has_issues && repo.open_issues > 0
+      );
 
-      // console.log(issues);
-
-      // return Response.json({ repos });
+      return Response.json(filteredRepos);
     }
 
     if (url.pathname === "/check-open-ai-key") {
@@ -213,6 +263,7 @@ export default {
         "OPENAI_API_KEY is not set, don't forget to set it locally in .dev.vars, and use `wrangler secret bulk .dev.vars` to upload it to production"
       );
     }
+
     return (
       // Route the request to our agent or return 404 if not found
       (await routeAgentRequest(request, env)) ||
