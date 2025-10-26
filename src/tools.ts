@@ -212,7 +212,11 @@ const listAllFiles = tool({
 
     const result = await sandbox.exec(`ls -R /workspace/${repoName}`);
 
-    return result.stdout;
+    if (result.success) {
+      return result.stdout;
+    } else {
+      return `Error listing files: ${result.stderr}`;
+    }
   }
 });
 
@@ -228,7 +232,11 @@ const readFile = tool({
       encoding: "utf-8"
     });
 
-    return file.content;
+    if (file.success) {
+      return file.content;
+    } else {
+      return `Error reading file: ${file.stderr}`;
+    }
   }
 });
 

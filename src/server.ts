@@ -96,6 +96,10 @@ export class Chat extends AIChatAgent<Env> {
         const result = streamText({
           system: `You are a software engineering agent, you can fix issues in a repo, create PRs, and do various tasks... 
 
+          You have to keep working on the same branch until the issue is fixed. You only stop when then issue is fixed.
+
+          -clone the repository using the cloneRepository tool.
+          -list all the files and read the necessary files to fix the issue.
           - create a feature branch
           - make the changes in the necessary files
           - commit the changes
@@ -104,6 +108,10 @@ export class Chat extends AIChatAgent<Env> {
 
 
           Before doing any operation, make sure to print the current working directory using the commandExecutor tool.
+
+          use the listAllfiles tool to list all the files in the repository.
+
+          and then use the readFile tool to read the files which are necessary to fix the issue.
 
           You might have to use the read/write tools multiple times to fix the issue.
 
