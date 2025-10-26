@@ -1,238 +1,264 @@
-# 🤖 Chat Agent Starter Kit
+# 🤖 GitHub AI Agent
 
-![npm i agents command](./npm-agents-banner.svg)
+An intelligent AI-powered agent for managing and interacting with your GitHub repositories. Built with **Cloudflare Workers** and **Vercel AI SDK**, this agent enables you to leverage AI capabilities to automate GitHub workflows, analyze code, manage issues, and perform repository operations through a conversational interface.
 
-<a href="https://deploy.workers.cloudflare.com/?url=https://github.com/cloudflare/agents-starter"><img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare"/></a>
+![GitHub AI Agent](./npm-agents-banner.svg)
 
-A starter template for building AI-powered chat agents using Cloudflare's Agent platform, powered by [`agents`](https://www.npmjs.com/package/agents). This project provides a foundation for creating interactive chat experiences with AI, complete with a modern UI and tool integration capabilities.
+## ✨ Features
 
-## Features
+- 💬 **Conversational Interface** - Chat naturally with your AI GitHub assistant
+- 🔐 **Secure GitHub Integration** - OAuth-based authentication with GitHub
+- 📂 **Repository Management** - Clone, browse, and analyze repositories
+- 🐛 **Issue Management** - List, create, and manage GitHub issues
+- 🔄 **Pull Request Automation** - Create pull requests programmatically
+- 📝 **Code Analysis** - Read, analyze, and modify files in repositories
+- 💾 **Sandbox Environment** - Execute commands safely in isolated containers
+- 🎨 **Modern UI** - Beautiful, responsive dark/light theme interface
+- 🌓 **Theme Support** - Seamless dark/light mode switching
+- ⚡️ **Real-time Streaming** - Stream AI responses for instant feedback
 
-- 💬 Interactive chat interface with AI
-- 🛠️ Built-in tool system with human-in-the-loop confirmation
-- 📅 Advanced task scheduling (one-time, delayed, and recurring via cron)
-- 🌓 Dark/Light theme support
-- ⚡️ Real-time streaming responses
-- 🔄 State management and chat history
-- 🎨 Modern, responsive UI
+## 🚀 Quick Start
 
-## Prerequisites
+### Prerequisites
 
-- Cloudflare account
+- Cloudflare account with Workers enabled (Required for Sandbox)
+- GitHub account with OAuth app registered
 - OpenAI API key
+- Node.js 18+ and npm
 
-## Quick Start
+### Setup
 
-1. Create a new project:
-
-```bash
-npx create-cloudflare@latest --template cloudflare/agents-starter
-```
-
-2. Install dependencies:
+1. **Clone the repository:**
 
 ```bash
+git clone <repository-url>
+cd cf_ai_github_agent
 npm install
 ```
 
-3. Set up your environment:
+2. **Set up environment variables:**
 
-Create a `.dev.vars` file:
+Create a `.dev.vars` file in the root directory:
 
 ```env
-OPENAI_API_KEY=your_openai_api_key
+OPENAI_API_KEY=your_openai_api_key_here
 ```
 
-4. Run locally:
+3. **Configure GitHub OAuth:**
+
+- Go to GitHub Settings → Developer settings → OAuth Apps
+- Create a new OAuth App
+- Set Authorization callback URL to `http://localhost:8787/callback` (for local development)
+- Add your `Client ID` and `Client Secret` to the `wrangler.jsonc` configuration
+
+4. **Run locally:**
 
 ```bash
 npm start
 ```
 
-5. Deploy:
+Visit `http://localhost:8787` in your browser and sign in with GitHub.
+
+5. **Deploy to Cloudflare Workers:**
 
 ```bash
 npm run deploy
 ```
 
-## Project Structure
+## 📋 Available Tools
+
+### GitHub Operations
+
+- **List Issues** - Retrieve all issues from a specified repository
+- **Create Pull Request** - Create pull requests programmatically
+- **Clone Repository** - Clone GitHub repositories to the sandbox
+- **List Repository Files** - Browse repository structure
+
+### Code Manipulation
+
+- **Read File** - Read and display file contents
+- **Write File** - Modify or create files in repositories
+- **Command Executor** - Execute arbitrary commands in the sandbox
+
+## 🏗️ Project Structure
 
 ```
 ├── src/
-│   ├── app.tsx        # Chat UI implementation
-│   ├── server.ts      # Chat agent logic
-│   ├── tools.ts       # Tool definitions
-│   ├── utils.ts       # Helper functions
-│   └── styles.css     # UI styling
+│   ├── app.tsx                 # React chat UI component
+│   ├── server.ts               # Agent logic and OpenAI integration
+│   ├── tools.ts                # Tool definitions for the agent
+│   ├── client.tsx              # Client entry point
+│   ├── utils.ts                # Utility functions
+│   ├── styles.css              # Global styles
+│   ├── components/             # Reusable UI components
+│   │   ├── avatar/
+│   │   ├── button/
+│   │   ├── card/
+│   │   ├── modal/
+│   │   └── ...
+│   └── hooks/                  # Custom React hooks
+├── public/                     # Static assets
+├── dist/                       # Build output
+├── wrangler.jsonc              # Cloudflare Workers configuration
+├── vite.config.ts              # Vite configuration
+└── package.json
 ```
 
-## Customization Guide
+## 🔧 Customization
 
 ### Adding New Tools
 
-Add new tools in `tools.ts` using the tool builder:
-
-```ts
-// Example of a tool that requires confirmation
-const searchDatabase = tool({
-  description: "Search the database for user records",
-  parameters: z.object({
-    query: z.string(),
-    limit: z.number().optional()
-  })
-  // No execute function = requires confirmation
-});
-
-// Example of an auto-executing tool
-const getCurrentTime = tool({
-  description: "Get current server time",
-  parameters: z.object({}),
-  execute: async () => new Date().toISOString()
-});
-
-// Scheduling tool implementation
-const scheduleTask = tool({
-  description:
-    "schedule a task to be executed at a later time. 'when' can be a date, a delay in seconds, or a cron pattern.",
-  parameters: z.object({
-    type: z.enum(["scheduled", "delayed", "cron"]),
-    when: z.union([z.number(), z.string()]),
-    payload: z.string()
-  }),
-  execute: async ({ type, when, payload }) => {
-    // ... see the implementation in tools.ts
-  }
-});
-```
-
-To handle tool confirmations, add execution functions to the `executions` object:
+Edit `src/tools.ts` to add new tools:
 
 ```typescript
-export const executions = {
-  searchDatabase: async ({
-    query,
-    limit
-  }: {
-    query: string;
-    limit?: number;
-  }) => {
-    // Implementation for when the tool is confirmed
-    const results = await db.search(query, limit);
-    return results;
+const myCustomTool = tool({
+  description: "Description of what your tool does",
+  inputSchema: z.object({
+    param1: z.string(),
+    param2: z.number().optional()
+  }),
+  execute: async ({ param1, param2 }) => {
+    // Implementation here
+    return "Result";
   }
-  // Add more execution handlers for other tools that require confirmation
-};
+});
 ```
 
-Tools can be configured in two ways:
+Add the tool to the `tools` export:
 
-1. With an `execute` function for automatic execution
-2. Without an `execute` function, requiring confirmation and using the `executions` object to handle the confirmed action. NOTE: The keys in `executions` should match `toolsRequiringConfirmation` in `app.tsx`.
-
-### Use a different AI model provider
-
-The starting [`server.ts`](https://github.com/cloudflare/agents-starter/blob/main/src/server.ts) implementation uses the [`ai-sdk`](https://sdk.vercel.ai/docs/introduction) and the [OpenAI provider](https://sdk.vercel.ai/providers/ai-sdk-providers/openai), but you can use any AI model provider by:
-
-1. Installing an alternative AI provider for the `ai-sdk`, such as the [`workers-ai-provider`](https://sdk.vercel.ai/providers/community-providers/cloudflare-workers-ai) or [`anthropic`](https://sdk.vercel.ai/providers/ai-sdk-providers/anthropic) provider:
-2. Replacing the AI SDK with the [OpenAI SDK](https://github.com/openai/openai-node)
-3. Using the Cloudflare [Workers AI + AI Gateway](https://developers.cloudflare.com/ai-gateway/providers/workersai/#workers-binding) binding API directly
-
-For example, to use the [`workers-ai-provider`](https://sdk.vercel.ai/providers/community-providers/cloudflare-workers-ai), install the package:
-
-```sh
-npm install workers-ai-provider
+```typescript
+export const tools = {
+  // ... existing tools
+  myCustomTool
+} satisfies ToolSet;
 ```
-
-Add an `ai` binding to `wrangler.jsonc`:
-
-```jsonc
-// rest of file
-  "ai": {
-    "binding": "AI"
-  }
-// rest of file
-```
-
-Replace the `@ai-sdk/openai` import and usage with the `workers-ai-provider`:
-
-```diff
-// server.ts
-// Change the imports
-- import { openai } from "@ai-sdk/openai";
-+ import { createWorkersAI } from 'workers-ai-provider';
-
-// Create a Workers AI instance
-+ const workersai = createWorkersAI({ binding: env.AI });
-
-// Use it when calling the streamText method (or other methods)
-// from the ai-sdk
-- const model = openai("gpt-4o-2024-11-20");
-+ const model = workersai("@cf/deepseek-ai/deepseek-r1-distill-qwen-32b")
-```
-
-Commit your changes and then run the `agents-starter` as per the rest of this README.
 
 ### Modifying the UI
 
-The chat interface is built with React and can be customized in `app.tsx`:
+The chat interface is built with React and Tailwind CSS. Customize it in `src/app.tsx`:
 
-- Modify the theme colors in `styles.css`
-- Add new UI components in the chat container
-- Customize message rendering and tool confirmation dialogs
-- Add new controls to the header
+- Update theme colors in `src/styles.css`
+- Add new UI components in `src/components/`
+- Modify message rendering and tool interaction dialogs
+- Customize the header and controls
 
-### Example Use Cases
+### Using Different AI Models
 
-1. **Customer Support Agent**
-   - Add tools for:
-     - Ticket creation/lookup
-     - Order status checking
-     - Product recommendations
-     - FAQ database search
+The starter uses OpenAI GPT-4, but you can switch to other providers:
 
-2. **Development Assistant**
-   - Integrate tools for:
-     - Code linting
-     - Git operations
-     - Documentation search
-     - Dependency checking
+**Option 1: Cloudflare Workers AI**
 
-3. **Data Analysis Assistant**
-   - Build tools for:
-     - Database querying
-     - Data visualization
-     - Statistical analysis
-     - Report generation
+```bash
+npm install workers-ai-provider
+```
 
-4. **Personal Productivity Assistant**
-   - Implement tools for:
-     - Task scheduling with flexible timing options
-     - One-time, delayed, and recurring task management
-     - Task tracking with reminders
-     - Email drafting
-     - Note taking
+Update `src/server.ts`:
 
-5. **Scheduling Assistant**
-   - Build tools for:
-     - One-time event scheduling using specific dates
-     - Delayed task execution (e.g., "remind me in 30 minutes")
-     - Recurring tasks using cron patterns
-     - Task payload management
-     - Flexible scheduling patterns
+```typescript
+import { createWorkersAI } from "workers-ai-provider";
 
-Each use case can be implemented by:
+const workersai = createWorkersAI({ binding: env.AI });
+const model = workersai("@cf/meta/llama-3.1-70b-instruct");
+```
 
-1. Adding relevant tools in `tools.ts`
-2. Customizing the UI for specific interactions
-3. Extending the agent's capabilities in `server.ts`
-4. Adding any necessary external API integrations
+**Option 2: Anthropic**
 
-## Learn More
+```bash
+npm install @anthropic-ai/sdk
+```
 
-- [`agents`](https://github.com/cloudflare/agents/blob/main/packages/agents/README.md)
+## 🔐 Security Considerations
+
+- **Authentication**: Uses GitHub OAuth for secure access - tokens are stored client-side
+- **Sandbox Execution**: Commands execute in isolated Cloudflare Sandbox containers
+- **Token Management**: Keep your OpenAI API key secure in `.dev.vars`
+- **Access Control**: Only authenticated GitHub users can access the agent
+
+## 🚢 Deployment
+
+### Deploy to Cloudflare Workers
+
+```bash
+npm run deploy
+```
+
+This will:
+
+1. Build the React frontend
+2. Bundle the worker code
+3. Deploy to your Cloudflare account
+4. Build and deploy the sandbox container
+
+Monitor deployments in your Cloudflare Dashboard.
+
+### Environment Variables in Production
+
+Add secrets to your Cloudflare Workers in the dashboard or via CLI:
+
+```bash
+wrangler secret put OPENAI_API_KEY
+```
+
+## 📚 Learn More
+
 - [Cloudflare Agents Documentation](https://developers.cloudflare.com/agents/)
 - [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)
+- [Vercel AI SDK](https://sdk.vercel.ai/)
+- [GitHub REST API](https://docs.github.com/en/rest)
+- [Octokit.js](https://github.com/octokit/octokit.js)
 
-## License
+## 🤝 Use Cases
 
-MIT
+1. **GitHub Automation**
+   - Automate issue creation and management
+   - Generate pull requests based on analysis
+   - Monitor repositories and generate reports
+
+2. **Code Analysis**
+   - Analyze code quality and suggest improvements
+   - Generate documentation from code
+   - Identify potential bugs or security issues
+
+3. **Repository Management**
+   - Batch operations across multiple repositories
+   - Automated code refactoring
+   - Template-based file generation
+
+4. **CI/CD Integration**
+   - Intelligent workflow triggering
+   - Automated testing and deployment decisions
+   - Release automation
+
+## 🐛 Troubleshooting
+
+### "Requires authentication" Error
+
+Ensure your GitHub OAuth token is valid:
+
+1. Check that you're signed in with GitHub
+2. Verify token permissions include `repo` and `user` scopes
+3. Re-authenticate if the token has expired
+
+### Sandbox Execution Errors
+
+- Check that commands are valid and supported
+- Ensure file paths are correctly formatted
+- Verify the repository has been cloned first
+
+### WebSocket Connection Issues
+
+- Check your internet connection
+- Ensure the Cloudflare Worker is deployed
+- Check browser console for connection errors
+
+## 📄 License
+
+MIT License - feel free to use this project for personal or commercial purposes.
+
+## 🙋 Support
+
+For issues, questions, or contributions, please open an issue on the repository or reach out to the development team.
+
+---
+
+Built with ❤️ using [Cloudflare Workers](https://workers.cloudflare.com), [Vercel AI SDK](https://sdk.vercel.ai), and [React](https://react.dev)
